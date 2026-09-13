@@ -32,14 +32,14 @@ export const brand = {
   },
   assets: {
     banner: {
-      filename: "crazy-banner.png",
-      path: path.resolve(process.cwd(), "assets", "branding", "crazy-banner.png"),
-      url: "attachment://crazy-banner.png",
+      filename: "crazy-banner.jpg",
+      path: path.resolve(process.cwd(), "assets", "branding", "crazy-banner.jpg"),
+      url: "attachment://crazy-banner.jpg",
     },
     logo: {
-      filename: "crazy-logo.png",
-      path: path.resolve(process.cwd(), "assets", "branding", "crazy-logo.png"),
-      url: "attachment://crazy-logo.png",
+      filename: "crazy-logo.jpg",
+      path: path.resolve(process.cwd(), "assets", "branding", "crazy-logo.jpg"),
+      url: "attachment://crazy-logo.jpg",
     },
   },
 };
