@@ -18,12 +18,16 @@ import type { VoiceService } from "../modules/voice/voiceService.js";
 import type { VoiceLogService } from "../services/voiceLogService.js";
 import type { SystemStatusRepository } from "../repositories/systemStatusRepository.js";
 import type { StatusScheduler } from "../modules/systemStatus/statusScheduler.js";
+import type { SteamFreeRepository } from "../repositories/steamFreeRepository.js";
+import type { SteamFreeService } from "../services/steamFreeService.js";
+import type { SteamFreeScheduler } from "../modules/steamFree/steamFreeScheduler.js";
 
 export interface BotContext {
   client: Client;
   startedAt: Date;
   database: Database;
   commands: Collection<string, BotCommand>;
+
   repositories: {
     guildConfig: GuildConfigRepository;
     cases: CaseRepository;
@@ -36,12 +40,16 @@ export interface BotContext {
     tempVoice: TempVoiceRepository;
     audit: AuditRepository;
     systemStatus: SystemStatusRepository;
+    steamFree: SteamFreeRepository;
   };
+
   services: {
     confirmations: ConfirmationService;
     logs: LogService;
     voice: VoiceService;
     voiceLogs: VoiceLogService;
     statusScheduler: StatusScheduler;
+    steamFree: SteamFreeService;
+    steamFreeScheduler: SteamFreeScheduler;
   };
 }

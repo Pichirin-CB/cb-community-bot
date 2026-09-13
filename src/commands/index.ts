@@ -13,9 +13,11 @@ import { voiceGeneratorCommand } from "./voiceGenerator.js";
 import { voiceHelpCommand } from "./voiceHelp.js";
 import { monitoringCommands } from "./monitoring/index.js";
 import { developerCommands } from "./developer/index.js";
+import { steamFreeCommand } from "./steamFree.js";
 
 export function loadCommands(): Collection<string, BotCommand> {
   const commands = new Collection<string, BotCommand>();
+
   for (const command of [
     ...generalCommands,
     ...configurationCommands,
@@ -29,13 +31,16 @@ export function loadCommands(): Collection<string, BotCommand> {
     voiceCommand,
     voiceAdminCommand,
     ...monitoringCommands,
+    steamFreeCommand,
     ...developerCommands,
   ]) {
     if (commands.has(command.data.name)) {
       throw new Error(`Comando duplicado: ${command.data.name}`);
     }
+
     commands.set(command.data.name, command);
   }
+
   return commands;
 }
 
@@ -43,15 +48,44 @@ export function commandJson() {
   return [...loadCommands().values()].map((command) => {
     const json = command.data.toJSON();
     const permission = defaultDiscordPermission(command.level);
-    return permission === null ? json : { ...json, default_member_permissions: permission.toString() };
+
+    return permission === null
+      ? json
+      : {
+          ...json,
+          default_member_permissions: permission.toString(),
+        };
   });
 }
 
 export function defaultDiscordPermission(level?: string): bigint | null {
-  if (!level || level === "info" || level === "monitoring" || level === "developer" || level === "Miembro") return null;
-  if (level === "support" || level === "tickets") return PermissionFlagsBits.ManageMessages;
-  if (["warn", "timeout", "kick", "purge", "moderation"].includes(level)) return PermissionFlagsBits.ModerateMembers;
-  if (level === "roles") return PermissionFlagsBits.ManageRoles;
-  if (level === "founder") return PermissionFlagsBits.Administrator;
+  if (
+    !level ||
+    level === "info" ||
+    level === "monitoring" ||
+    level === "developer" ||
+    level === "Miembro"
+  ) {
+    return null;
+  }
+
+  if (level === "support" || level === "tickets") {
+    return PermissionFlagsBits.ManageMessages;
+  }
+
+  if (
+    ["warn", "timeout", "kick", "purge", "moderation"].includes(level)
+  ) {
+    return PermissionFlagsBits.ModerateMembers;
+  }
+
+  if (level === "roles") {
+    return PermissionFlagsBits.ManageRoles;
+  }
+
+  if (level === "founder") {
+    return PermissionFlagsBits.Administrator;
+  }
+
   return PermissionFlagsBits.ManageGuild;
 }

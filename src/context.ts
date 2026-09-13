@@ -18,20 +18,27 @@ import { VoiceLogService } from "./services/voiceLogService.js";
 import { VoiceService } from "./modules/voice/voiceService.js";
 import { SystemStatusRepository } from "./repositories/systemStatusRepository.js";
 import { StatusScheduler } from "./modules/systemStatus/statusScheduler.js";
+import { SteamFreeRepository } from "./repositories/steamFreeRepository.js";
+import { SteamFreeService } from "./services/steamFreeService.js";
+import { SteamFreeScheduler } from "./modules/steamFree/steamFreeScheduler.js";
 import type { BotContext } from "./types/context.js";
 
 export function createContext(client: Client): BotContext {
   const database = new Database(env.DATABASE_PATH);
   database.migrate();
+
   const connection = database.connection();
+
   const guildConfig = new GuildConfigRepository(connection);
   const auditEvents = new AuditEventRepository(connection);
+  const steamFree = new SteamFreeRepository(connection);
 
   const context = {
     client,
     startedAt: new Date(),
     database,
     commands: loadCommands(),
+
     repositories: {
       guildConfig,
       cases: new CaseRepository(connection),
@@ -44,16 +51,37 @@ export function createContext(client: Client): BotContext {
       tempVoice: new TempVoiceRepository(connection),
       audit: new AuditRepository(connection),
       systemStatus: new SystemStatusRepository(connection),
+      steamFree,
     },
+
     services: {
       confirmations: new ConfirmationService(),
       logs: new LogService(client, guildConfig, auditEvents),
       voice: undefined as unknown as VoiceService,
       voiceLogs: new VoiceLogService(client, guildConfig),
       statusScheduler: undefined as unknown as StatusScheduler,
+      steamFree: undefined as unknown as SteamFreeService,
+      steamFreeScheduler: undefined as unknown as SteamFreeScheduler,
     },
   };
+
   context.services.voice = new VoiceService(context);
-  context.services.statusScheduler = new StatusScheduler(client, context.repositories.systemStatus);
+
+  context.services.statusScheduler = new StatusScheduler(
+    client,
+    context.repositories.systemStatus,
+  );
+
+  context.services.steamFree = new SteamFreeService(
+    client,
+    context.repositories.steamFree,
+  );
+
+  context.services.steamFreeScheduler = new SteamFreeScheduler(
+    client,
+    context.repositories.steamFree,
+    context.services.steamFree,
+  );
+
   return context;
 }
