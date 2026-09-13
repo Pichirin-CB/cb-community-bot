@@ -51,7 +51,8 @@ export const migrations: Migration[] = [
         evidence TEXT,
         metadata_json TEXT NOT NULL DEFAULT '{}'
       );
-      CREATE INDEX IF NOT EXISTS idx_cases_guild_target ON moderation_cases(guild_id, target_user_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_cases_guild_target
+        ON moderation_cases(guild_id, target_user_id, created_at);
 
       CREATE TABLE IF NOT EXISTS warnings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +68,8 @@ export const migrations: Migration[] = [
         removal_reason TEXT,
         FOREIGN KEY(case_id) REFERENCES moderation_cases(case_id)
       );
-      CREATE INDEX IF NOT EXISTS idx_warnings_guild_target ON warnings(guild_id, target_user_id, active);
+      CREATE INDEX IF NOT EXISTS idx_warnings_guild_target
+        ON warnings(guild_id, target_user_id, active);
 
       CREATE TABLE IF NOT EXISTS tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,7 +85,8 @@ export const migrations: Migration[] = [
         closed_by_user_id TEXT,
         close_reason TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_tickets_owner ON tickets(guild_id, owner_user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tickets_owner
+        ON tickets(guild_id, owner_user_id, status);
 
       CREATE TABLE IF NOT EXISTS ticket_members (
         ticket_code TEXT NOT NULL,
@@ -130,7 +133,8 @@ export const migrations: Migration[] = [
         details_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_audit_guild_created ON audit_events(guild_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_audit_guild_created
+        ON audit_events(guild_id, created_at);
     `,
   },
   {
@@ -150,6 +154,7 @@ export const migrations: Migration[] = [
       ALTER TABLE tickets ADD COLUMN claimed_at TEXT;
       ALTER TABLE tickets ADD COLUMN deleted_at TEXT;
       ALTER TABLE tickets ADD COLUMN deleted_by_user_id TEXT;
+
       CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_open_owner_category
         ON tickets(guild_id, owner_user_id, category)
         WHERE status = 'open';
@@ -182,10 +187,13 @@ export const migrations: Migration[] = [
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE(guild_id, group_key, role_id),
-        FOREIGN KEY(guild_id, group_key) REFERENCES self_role_groups(guild_id, group_key)
+        FOREIGN KEY(guild_id, group_key)
+          REFERENCES self_role_groups(guild_id, group_key)
       );
+
       CREATE INDEX IF NOT EXISTS idx_self_role_options_guild_group
         ON self_role_options(guild_id, group_key, enabled, sort_order);
+
       CREATE INDEX IF NOT EXISTS idx_self_role_options_role
         ON self_role_options(guild_id, role_id);
     `,
@@ -216,12 +224,14 @@ export const migrations: Migration[] = [
         updated_at TEXT NOT NULL,
         UNIQUE(guild_id, generator_channel_id)
       );
+
       CREATE TABLE IF NOT EXISTS voice_generator_roles (
         generator_id INTEGER NOT NULL REFERENCES voice_generators(id) ON DELETE CASCADE,
         role_id TEXT NOT NULL,
         created_at TEXT NOT NULL,
         PRIMARY KEY(generator_id, role_id)
       );
+
       CREATE TABLE IF NOT EXISTS temporary_voice_channels (
         channel_id TEXT PRIMARY KEY,
         guild_id TEXT NOT NULL,
@@ -235,7 +245,10 @@ export const migrations: Migration[] = [
         custom_name TEXT,
         status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'PENDING_DELETE', 'DELETED')) DEFAULT 'ACTIVE'
       );
-      CREATE INDEX IF NOT EXISTS idx_temp_voice_guild_owner ON temporary_voice_channels(guild_id, owner_user_id, status);
+
+      CREATE INDEX IF NOT EXISTS idx_temp_voice_guild_owner
+        ON temporary_voice_channels(guild_id, owner_user_id, status);
+
       CREATE TABLE IF NOT EXISTS temporary_voice_permissions (
         channel_id TEXT NOT NULL REFERENCES temporary_voice_channels(channel_id) ON DELETE CASCADE,
         user_id TEXT NOT NULL,
@@ -243,6 +256,7 @@ export const migrations: Migration[] = [
         created_at TEXT NOT NULL,
         PRIMARY KEY(channel_id, user_id)
       );
+
       CREATE TABLE IF NOT EXISTS voice_audit_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guild_id TEXT NOT NULL,
@@ -253,7 +267,9 @@ export const migrations: Migration[] = [
         metadata TEXT,
         created_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_voice_audit_guild_created ON voice_audit_events(guild_id, created_at);
+
+      CREATE INDEX IF NOT EXISTS idx_voice_audit_guild_created
+        ON voice_audit_events(guild_id, created_at);
     `,
   },
   {
@@ -286,6 +302,51 @@ export const migrations: Migration[] = [
       ALTER TABLE guild_config ADD COLUMN channel_log_channel_id TEXT;
       ALTER TABLE guild_config ADD COLUMN ticket_log_channel_id TEXT;
       ALTER TABLE guild_config ADD COLUMN security_log_channel_id TEXT;
+    `,
+  },
+  {
+    id: 8,
+    name: "steam_free_games",
+    sql: `
+      CREATE TABLE IF NOT EXISTS steam_free_config (
+        guild_id TEXT PRIMARY KEY,
+        channel_id TEXT,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        check_interval_minutes INTEGER NOT NULL DEFAULT 15,
+        free_to_keep_enabled INTEGER NOT NULL DEFAULT 1,
+        free_weekend_enabled INTEGER NOT NULL DEFAULT 0,
+        dlc_enabled INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(guild_id) REFERENCES guild_config(guild_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS steam_free_promotions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id TEXT NOT NULL,
+        app_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        original_price TEXT,
+        currency TEXT,
+        promotion_key TEXT NOT NULL,
+        started_at TEXT,
+        expires_at TEXT,
+        steam_url TEXT NOT NULL,
+        image_url TEXT,
+        message_id TEXT,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        UNIQUE(guild_id, promotion_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_steam_free_promotions_guild_app
+        ON steam_free_promotions(guild_id, app_id);
+
+      CREATE INDEX IF NOT EXISTS idx_steam_free_promotions_expires
+        ON steam_free_promotions(expires_at);
+
+      CREATE INDEX IF NOT EXISTS idx_steam_free_promotions_app_promotion
+        ON steam_free_promotions(app_id, promotion_key);
     `,
   },
 ];
