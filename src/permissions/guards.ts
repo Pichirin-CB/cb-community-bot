@@ -27,7 +27,7 @@ export function requirePermission(
   const member = requireGuildMember(interaction);
   const config = context.repositories.guildConfig.ensure(interaction.guildId!);
   if (!hasInternalPermission(member, config, permission, interaction.guild?.ownerId)) {
-    throw new UserFacingError("No tienes el nivel interno de CB Studios necesario para usar esta funcion.");
+    throw new UserFacingError("No tienes permisos suficientes para utilizar esta funcion.");
   }
   return member;
 }
