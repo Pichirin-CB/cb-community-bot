@@ -53,7 +53,7 @@ export async function handleMemberJoin(member: GuildMember, context: BotContext)
         role,
       });
       if (check.ok) {
-        await member.roles.add(role, "Autorole CB Studios Bot").catch((error) => {
+        await member.roles.add(role, "Autorole CB Community").catch((error) => {
           logger.warn({ error, guildId: member.guild.id, userId: member.id }, "Fallo asignando autorole");
         });
       } else {

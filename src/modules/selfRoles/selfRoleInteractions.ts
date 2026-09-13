@@ -115,8 +115,8 @@ async function applyColor(interaction: StringSelectMenuInteraction, context: Bot
       botMember,
     });
     selectedRoleColor = manageable.find((role) => role.id === roleId)?.color ?? null;
-    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Cambio de color desde panel CB Studios Bot");
-    if (changes.add.length > 0) await interaction.member.roles.add(changes.add, "Cambio de color desde panel CB Studios Bot");
+    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Cambio de color desde panel CB Community");
+    if (changes.add.length > 0) await interaction.member.roles.add(changes.add, "Cambio de color desde panel CB Community");
     context.repositories.auditEvents.create({
       guildId: interaction.guild.id,
       actorUserId: interaction.user.id,
@@ -140,7 +140,7 @@ async function removeColor(interaction: ButtonInteraction, context: BotContext):
     const colorRoleIds = configuredColorRoleIds(context, interaction.guild.id);
     const changes = plannedColorRoleChanges(interaction.member.roles.cache.keys(), colorRoleIds, null);
     await ensureRolesManageable({ guild: interaction.guild, roleIds: changes.remove, context, botMember });
-    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Color retirado desde panel CB Studios Bot");
+    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Color retirado desde panel CB Community");
     context.repositories.auditEvents.create({
       guildId: interaction.guild.id,
       actorUserId: interaction.user.id,
@@ -242,8 +242,8 @@ async function applyPreferences(interaction: StringSelectMenuInteraction, contex
       context,
       botMember,
     });
-    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Preferencias actualizadas desde panel CB Studios Bot");
-    if (changes.add.length > 0) await interaction.member.roles.add(changes.add, "Preferencias actualizadas desde panel CB Studios Bot");
+    if (changes.remove.length > 0) await interaction.member.roles.remove(changes.remove, "Preferencias actualizadas desde panel CB Community");
+    if (changes.add.length > 0) await interaction.member.roles.add(changes.add, "Preferencias actualizadas desde panel CB Community");
     context.repositories.auditEvents.create({
       guildId: interaction.guild.id,
       actorUserId: interaction.user.id,

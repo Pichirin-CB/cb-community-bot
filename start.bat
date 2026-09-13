@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title CB Studios Bot - Start
+title CB Community - Start
 cd /d "%~dp0"
 
 if not exist "node_modules" (

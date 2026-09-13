@@ -43,7 +43,7 @@ export function validateSelfRole(role: Role, config: GuildConfig, botMember: Gui
       managed: role.managed,
     })
   ) {
-    return "Rol protegido por CB Studios Bot.";
+    return "Rol protegido por CB Community.";
   }
   if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
     return "El bot no tiene Manage Roles.";

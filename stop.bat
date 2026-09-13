@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title CB Studios Bot - Stop
+title CB Community - Stop
 cd /d "%~dp0"
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^

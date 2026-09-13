@@ -49,7 +49,7 @@ function cleanMessageId(value: string | null): string | null | undefined {
 export const configCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("config")
-    .setDescription("Configura CB Studios Bot para este servidor.")
+    .setDescription("Configura CB Community para este servidor.")
     .addSubcommand((sub) =>
       sub
         .setName("channel")

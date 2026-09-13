@@ -1,7 +1,7 @@
 {
   "name": "cb-community-bot",
   "version": "1.0.0",
-  "description": "Bot administrativo oficial del Discord de CB Studios.",
+  "description": "Official CB Studios Discord community bot for moderation, community management, support tools, automation, and server utilities.",
   "main": "dist/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -17,7 +17,7 @@
   },
   "keywords": [],
   "author": "CB Studios",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "dependencies": {
     "better-sqlite3": "^13.0.3",

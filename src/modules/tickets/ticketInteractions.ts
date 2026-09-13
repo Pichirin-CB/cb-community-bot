@@ -109,7 +109,7 @@ export async function handleTicketSelect(interaction: StringSelectMenuInteractio
         botUserId: botMember.id,
         staffRoles,
       }),
-      reason: "Ticket creado desde CB Studios Bot",
+      reason: "Ticket creado desde CB Community",
     });
 
     const ticket = context.repositories.tickets.create(interaction.guildId!, channel.id, interaction.user.id, categoryValue);
@@ -267,7 +267,7 @@ export async function deleteTicket(interaction: TicketInteraction, context: BotC
     });
     await button.update({ embeds: [embeds.warning("Eliminando", "El canal sera eliminado.")], components: [] });
     if (interaction.channel?.type === ChannelType.GuildText) {
-      await (interaction.channel as TextChannel).delete("Ticket eliminado desde CB Studios Bot");
+      await (interaction.channel as TextChannel).delete("Ticket eliminado desde CB Community");
     }
   });
 }

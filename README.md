@@ -119,7 +119,7 @@ Clone or download the CB Community repository.
 
 ```bash
 git clone https://github.com/Pichirin-CB/cb-community-bot.git
-````
+```
 
 ### 2. Install Dependencies
 

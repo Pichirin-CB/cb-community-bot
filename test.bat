@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title CB Studios Bot - Test
+title CB Community - Test
 cd /d "%~dp0"
 
 echo.

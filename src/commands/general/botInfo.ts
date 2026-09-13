@@ -11,7 +11,7 @@ export const botInfoCommand: BotCommand = {
     const uptimeMinutes = Math.floor(uptimeMs / 60_000);
     await interaction.reply({
       embeds: [
-        embeds.info("CB Studios Bot", "Bot central de administracion de CB Studios.").addFields(
+        embeds.info("CB Community", "Bot central de administracion de la comunidad de CB Studios.").addFields(
           { name: "Discord", value: context.client.isReady() ? "Online" : "Conectando", inline: true },
           { name: "Uptime", value: `${uptimeMinutes} min`, inline: true },
           { name: "Version", value: "1.0.0", inline: true },
