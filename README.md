@@ -1,38 +1,195 @@
-# CB Studios Bot
 
-Bot administrativo oficial del servidor de Discord de **CB Studios**. Incluye moderación, tickets, anuncios, autoroles, salas de voz temporales, bienvenida, registros y monitorización del equipo donde se ejecuta.
+██████╗ ███████╗ █████╗ ██████╗ ███╗   ███╗███████╗ 
+██╔══██╗██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝ 
+██████╔╝█████╗  ███████║██║  ██║██╔████╔██║█████╗   
+██╔══██╗██╔══╝  ██╔══██║██║  ██║██║╚██╔╝██║██╔══╝   
+██║  ██║███████╗██║  ██║██████╔╝██║ ╚═╝ ██║███████╗ 
+╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚══════╝ 
 
-Este documento explica qué hace el bot, qué decisiones debes tomar y cómo ponerlo en funcionamiento.
+---------------------------------------------------------------------------
 
-## Decisiones antes de usarlo
+# CB Community — Technical Documentation
 
-1. **Entorno:** usa `development` mientras configuras y pruebas; cambia a `production` cuando esté listo.
-2. **Rangos:** decide qué roles representarán a Founder, Administrator, Developer, Support, Customer y Member.
-3. **Canales:** elige dónde irán bienvenidas, anuncios, tickets, paneles y cada tipo de registro.
-4. **Módulos:** decide si activarás bienvenidas, despedidas, moderación, logs de mensajes, seguridad y mensajes privados de bienvenida.
-5. **Message Content:** mantenlo apagado salvo que necesites leer el contenido de mensajes.
-6. **System Monitor:** actívalo solo si quieres publicar el estado abstracto del servicio y ofrecer métricas privadas al personal autorizado.
-7. **Salas temporales:** decide qué canales serán generadores PUBLIC, SUPPORT y STAFF, dónde crearán salas y quién podrá administrarlas.
+**Official CB Studios Discord Community Bot**
 
-Configuración recomendada para empezar: desarrollo, monitor VPS apagado, Message Content apagado y comandos registrados solamente en el servidor de pruebas.
+Version: `1.0.0`  
+Author: **CB Studios**  
+Type: **Discord Community Bot**
 
-## Requisitos e instalación
+---------------------------------------------------------------------------
 
-- Windows 10/11 o Windows Server.
-- Node.js 20 o superior y npm.
-- Una aplicación propia en Discord Developer Portal.
+# Resource Overview
 
-```powershell
-npm.cmd install
-npm.cmd run db:migrate
-npm.cmd run build
+CB Community is the official Discord community bot developed for the
+CB Studios ecosystem.
+
+The bot provides centralized tools for community management, moderation,
+support workflows, automation, temporary voice channels, welcome systems,
+self-roles, logging, status utilities and administrative operations.
+
+This documentation is intended for administrators, developers and staff
+members responsible for deploying, configuring or maintaining CB Community.
+
+---------------------------------------------------------------------------
+
+# Features
+
+### 🛡️ Moderation
+
+• Server moderation utilities  
+• Permission-aware administrative commands  
+• Moderation and management tools  
+
+### 🎫 Support & Tickets
+
+• Ticket creation and management  
+• Ticket claiming  
+• Ticket closing and reopening  
+• Transcript workflows  
+• Staff support utilities  
+
+### 👋 Welcome System
+
+• Automated member welcome messages  
+• Configurable welcome behavior  
+• Automatic role assignment  
+
+### 🎭 Self Roles
+
+• Interactive role selection  
+• Role management utilities  
+• Protected-role handling  
+
+### 🔊 Temporary Voice Channels
+
+• Temporary voice channel creation  
+• Automatic channel management  
+• Cleanup of inactive temporary channels  
+
+### 📢 Community Automation
+
+• Automated Discord workflows  
+• Community announcements  
+• Discord event handling  
+• Server automation tools  
+
+### 📊 Status & Utilities
+
+• Bot status information  
+• Runtime information  
+• Uptime information  
+• Health and diagnostic utilities  
+
+### 🧰 Developer Tools
+
+• Private developer commands  
+• Module information  
+• Health checks  
+• Operational diagnostics  
+
+### 💾 Persistent Storage
+
+• SQLite database  
+• Automatic database migrations  
+• Persistent community configuration  
+• Local data storage  
+
+---------------------------------------------------------------------------
+
+# Requirements
+
+The following components are required to run CB Community:
+
+• Node.js  
+• npm  
+• A Discord application  
+• A Discord bot  
+• A Discord server where the bot will operate  
+
+The bot must have the Discord permissions required by the modules
+enabled on the server.
+
+---------------------------------------------------------------------------
+
+# Installation
+
+### 1. Download the Repository
+
+Clone or download the CB Community repository.
+
+```bash
+git clone https://github.com/Pichirin-CB/cb-community-bot.git
+````
+
+### 2. Install Dependencies
+
+Open a terminal inside the project directory and run:
+
+```bash
+npm install
 ```
 
-## Configuración de `.env`
+### 3. Configure Environment Variables
 
-El archivo `.env` ya está creado y excluido de Git. Nunca compartas `DISCORD_TOKEN` ni publiques el archivo completo.
+Create a `.env` file using `.env.example` as the template.
 
-Variables obligatorias en desarrollo:
+Example:
+
+```env
+DISCORD_TOKEN=
+DISCORD_CLIENT_ID=
+DISCORD_GUILD_ID=
+
+DATABASE_PATH=./data/cb_community.sqlite
+NODE_ENV=development
+LOG_LEVEL=info
+BOT_PRESENCE=Con la comunidad 🎮
+```
+
+Additional environment variables may be required depending on the
+enabled features and modules.
+
+### 4. Deploy Discord Commands
+
+Deploy the slash commands:
+
+```bash
+npm run deploy:commands
+```
+
+On Windows, you can also use:
+
+```text
+deploy-commands.bat
+```
+
+### 5. Build the Project
+
+```bash
+npm run build
+```
+
+### 6. Start the Bot
+
+```bash
+npm start
+```
+
+---------------------------------------------------------------------------
+
+# Configuration
+
+Configuration is primarily handled through environment variables.
+
+The main configuration file is:
+
+```text
+.env
+```
+
+Use `.env.example` as the reference configuration.
+
+### Discord Configuration
 
 ```env
 DISCORD_TOKEN=
@@ -40,259 +197,334 @@ DISCORD_CLIENT_ID=
 DISCORD_GUILD_ID=
 ```
 
-- `DISCORD_TOKEN`: token secreto del bot.
-- `DISCORD_CLIENT_ID`: Application ID de la aplicación.
-- `DISCORD_GUILD_ID`: ID del servidor de desarrollo.
-
-Opciones generales:
+### Application Configuration
 
 ```env
-DATABASE_PATH=./data/cb_studios_bot.sqlite
 NODE_ENV=development
 LOG_LEVEL=info
-COMMAND_DEPLOYMENT_MODE=guild
-BOT_PRESENCE=CB Studios
-ENABLE_MESSAGE_CONTENT_INTENT=false
-ENABLE_SYSTEM_MONITOR=false
-STATUS_DEFAULT_INTERVAL_SECONDS=300
-STATUS_PUBLIC_CPU_WARN=85
-STATUS_PUBLIC_RAM_WARN=85
-STATUS_PUBLIC_DISK_WARN=90
+BOT_PRESENCE=Con la comunidad 🎮
 ```
 
-En producción cambia `NODE_ENV=production`, pero conserva `COMMAND_DEPLOYMENT_MODE=guild` para CB Studios. Los comandos solo se vuelven globales si eliges explícitamente `COMMAND_DEPLOYMENT_MODE=global`; ese modo requiere una decisión consciente porque la propagación puede tardar y el bot actualmente es single-guild.
+### Database Configuration
 
-## Arranque en Windows
+```env
+DATABASE_PATH=./data/cb_community.sqlite
+```
 
-- `start.bat`: inicia el bot en segundo plano y evita duplicados.
-- `status.bat`: muestra si está activo, su PID y el tiempo de ejecución.
-- `stop.bat`: detiene únicamente la instancia registrada.
-- `deploy-commands.bat`: registra o actualiza comandos slash.
-- `test.bat`: ejecuta migraciones, compilación, lint y pruebas.
+Never commit `.env` files containing private credentials.
 
-Primera puesta en marcha:
+---------------------------------------------------------------------------
+
+# Database
+
+CB Community uses SQLite for persistent local storage.
+
+Default database:
 
 ```text
-1. Completar .env
-2. Ejecutar deploy-commands.bat
-3. Ejecutar start.bat
-4. Comprobar status.bat
-5. Configurar el servidor con /config
+data/cb_community.sqlite
 ```
 
-Los logs están en `logs/cb_studios_bot.log`. La salida del proceso se guarda en `logs/bot-output.log` y `logs/bot-error.log`.
+Database migrations are handled by the project's migration system.
 
-## Rangos y acceso
+To manually execute migrations:
+
+```bash
+npm run db:migrate
+```
+
+### Database Migration Warning
+
+If upgrading an existing installation, always create a backup of the
+current database before changing database paths or applying structural
+changes.
+
+Never delete an existing production database during an update.
+
+---------------------------------------------------------------------------
+
+# Logs
+
+Application logs are stored inside:
 
 ```text
-Founder > Administrator > Developer > Support > Customer > Member
+logs/
 ```
 
-El propietario real del servidor se reconoce como Founder. Server Booster y Bots son roles organizativos y no conceden acceso administrativo. Los permisos no son totalmente acumulativos: Developer no recibe las herramientas de Support automáticamente.
+The main application log is:
 
-| Rango | Acceso actual |
-| --- | --- |
-| Member | Información, estado público y control de su sala temporal |
-| Customer | Igual que Member |
-| Support | Comandos públicos y gestión de tickets |
-| Developer | Comandos públicos y diagnóstico técnico seguro con `/dev` |
-| Administrator | Configuración, moderación, tickets, anuncios, roles, voz y monitorización |
-| Founder | Todo lo anterior y operaciones internas reservadas |
+```text
+logs/cb-community.log
+```
 
-Discord también exige permisos nativos. El bot no puede administrar miembros o roles situados por encima de su propio rol.
+Logs should be reviewed when troubleshooting startup errors,
+Discord connection problems or module failures.
 
-## Comandos públicos
+---------------------------------------------------------------------------
 
-- `/help`: muestra los comandos disponibles para el usuario.
-- `/bot-info`: estado, versión y tiempo activo.
-- `/server-info`: información del servidor.
-- `/user-info [usuario]`: información de un usuario.
-- `/role-info rol`: información de un rol.
-- `/channel-info canal`: información de un canal.
-- `/status [detalle:publico]`: estado abstracto (`Operational`, `Degraded` o `Unavailable`) sin CPU, RAM, disco ni datos del host.
-- `/voice-help`: ayuda del sistema de voz.
-- `/voice-bot-info`: estado del sistema de voz.
-- `/voice`: gestiona la sala temporal propia con `info`, `name`, `limit`, `lock`, `unlock`, `private`, `public`, `permit`, `block`, `unblock`, `kick`, `transfer` y `delete`.
+# Development
 
-## Comandos de Developer
+Run the bot in development mode:
 
-- `/dev status`: versión, entorno, uptime, latencia, salud de SQLite, build, memoria del proceso y resumen de voz.
-- `/dev modules`: estado enabled/disabled de los módulos, sin IDs ni secretos.
-- `/dev health`: comprobaciones internas no destructivas.
+```bash
+npm run dev
+```
 
-Developer no hereda tickets, moderación ni configuración administrativa. Las respuestas son privadas y nunca incluyen `.env`, tokens, rutas internas o stack traces.
+Development mode is intended for local development and testing.
 
-## Comandos de Support
+---------------------------------------------------------------------------
 
-- `/ticket claim`: reclama el ticket actual.
-- `/ticket close [motivo]`: cierra el ticket.
-- `/ticket reopen`: reabre el ticket.
-- `/ticket transcript`: genera un archivo HTML con datos del ticket, participantes y hasta 100 mensajes recientes; registra el evento en el log de tickets.
+# Build
 
-Support puede cerrar y reabrir tickets, pero no publicar el panel ni eliminar canales.
+Compile the TypeScript project:
 
-Categorías incluidas actualmente:
+```bash
+npm run build
+```
 
-- General Support
-- Customer Support
-- Technical Support
-- Bug Report
-- Purchase Question
-- Development Inquiry
-- Partnership
-- Other
+The compiled application is generated in the project's distribution
+directory.
 
-`customer_role_id` queda disponible para futuras reglas de Customer Support, pero todavía no existe integración con compras, licencias o CB Members.
+---------------------------------------------------------------------------
 
-## Comandos de Administrator y Founder
+# Validation
 
-### Configuración
+Before deploying changes, run:
 
-- `/config channel|role|toggle`: asigna canales, roles internos y módulos. Cambiar `founder_role_id` o `administrator_role_id` requiere Founder.
-- `/config presence`: cambia la presencia guardada.
-- `/config role-panel`: enlaza el panel de personalización.
-- `/config status-thresholds`: cambia alertas de CPU, RAM y disco.
-- `/config show`: muestra la configuración.
+```bash
+npm run build
+npm run lint
+npm run test
+```
 
-`/config show` utiliza estados `configured`, `not configured`, `enabled` y `disabled`. Puede mostrar IDs de Discord a Administrator/Founder, pero nunca lee ni presenta secretos del `.env`.
+All available checks should complete successfully before deploying
+a modified production build.
 
-### Moderación
+---------------------------------------------------------------------------
 
-- `/warn add|remove` y `/warnings`: administra advertencias.
-- `/timeout` y `/untimeout`: aplica o retira aislamiento.
-- `/kick`, `/ban` y `/unban`: expulsiones y bloqueos.
-- `/purge`: elimina entre 1 y 100 mensajes.
-- `/slowmode`: configura el modo lento.
-- `/lock` y `/unlock`: bloquea o restaura la escritura.
-- `/nickname`: cambia o elimina apodos.
-- `/role add|remove`: administra roles respetando la jerarquía.
-- `/case`: consulta un caso como `CB-000042`.
-- `/user-history`: consulta el historial de un usuario.
+# Windows Utilities
 
-### Anuncios y paneles
+The repository includes Windows helper scripts for common operations.
 
-- `/announce`: previsualiza y confirma un anuncio antes de publicarlo.
-- `/embed create|send|delete`: administra plantillas.
-- `/roles-panel seed|preview|regenerate-palettes|publish|list`: prepara y publica el panel.
-- `/roles-panel option-add|option-remove|option-enable`: administra sus opciones.
-- `/ticket panel`: publica o actualiza la entrada estructural de tickets.
-- `/ticket delete`: elimina definitivamente un canal tras confirmación.
-
-El panel de autoroles rechaza Founder, Administrator, Developer, Support, Customer, Member, Bots, Server Booster, roles managed, el rol del bot y roles fuera de su jerarquía. Solo publica opciones guardadas explícitamente. El banner de `assets/branding` se utiliza en bienvenidas, anuncios, tickets y paneles compatibles.
-
-### Voz administrativa
-
-- `/voice-config channel|settings|show`: configura el sistema.
-- `/voice-config role`: configura roles de voz; requiere Founder.
-- `/voice-generator create|edit|delete|list|info|enable|disable`: administra generadores.
-- `/voice-admin info|transfer|delete|cleanup|reconcile|refresh-permissions|stats`: administra salas temporales.
-
-Tipos recomendados de generador: PUBLIC (`🔊│general`), SUPPORT (`🎫│support`) y STAFF (`🛡️│staff`). Los nombres no son requisitos funcionales ni se usan como IDs. SUPPORT utiliza los roles configurados de soporte/administración; STAFF queda limitado al personal autorizado. Los propietarios solo reciben controles sobre su propia sala.
-
-### Monitorización
-
-- `/status detalle:admin`: métricas privadas del host; requiere Administrator o Founder.
-- `/status-channel`: configura el canal público.
-- `/status-loop activar|apagar|publicar|ver`: administra publicaciones automáticas.
-
-El monitor está apagado por defecto. Cuando está deshabilitado, sus comandos responden de forma controlada y no intentan recopilar o publicar métricas. Las publicaciones automáticas utilizan siempre el embed público sanitizado.
-
-## Opciones de configuración del servidor
-
-Claves para `/config channel`:
-
-- `welcome_channel_id`, `rules_channel_id`, `announcements_channel_id`
-- `moderation_log_channel_id`, `member_log_channel_id`, `message_log_channel_id`
-- `role_log_channel_id`, `channel_log_channel_id`, `ticket_log_channel_id`
-- `security_log_channel_id`, `bot_log_channel_id`, `voice_log_channel_id`
-- `role_panel_channel_id`, `support_alert_channel_id`, `ticket_category_id`
-
-Claves para `/config role`:
-
-- `member_role_id`, `customer_role_id`, `support_role_id`
-- `developer_role_id`, `administrator_role_id`, `founder_role_id`
-- `server_booster_role_id`, `bots_role_id`
-
-Módulos para `/config toggle`:
-
-- `welcome_enabled`: bienvenida pública y autorol Member.
-- `goodbye_enabled`: eventos de salida.
-- `moderation_enabled`: moderación.
-- `message_logs_enabled`: registros de mensajes.
-- `security_enabled`: seguridad.
-- `welcome_dm_enabled`: bienvenida por mensaje privado.
-
-El autorol utiliza `member_role_id`; el rol del bot debe estar por encima para poder asignarlo.
-
-## Decisiones manuales pendientes
-
-Antes de considerar el servidor listo para producción, debes decidir y configurar:
-
-- Los roles exactos para Founder, Administrator, Developer, Support, Customer y Member.
-- Los canales de bienvenida, reglas, anuncios y cada clase de log.
-- La categoría y el canal del panel de tickets.
-- Si activarás mensajes privados de bienvenida y logs de mensajes.
-- Si necesitas System Monitor y qué umbrales utilizarás.
-- Los tres generadores de voz y sus categorías PUBLIC, SUPPORT y STAFF.
-- Las opciones cosméticas permitidas en el panel de autoroles.
-- Si el despliegue continuará siendo `guild` —recomendado— o se hará global en el futuro.
-
-No asignes manualmente Server Booster mediante `/role`; Discord continúa siendo la fuente de verdad. `bots_role_id` tampoco concede permisos administrativos a otras aplicaciones.
-
-## Intents y permisos de Discord
-
-Intents: Guilds, GuildMembers, GuildModeration y GuildMessages. Message Content solo se solicita con `ENABLE_MESSAGE_CONTENT_INTENT=true` y también debe activarse en Developer Portal.
-
-Scopes OAuth: `bot` y `applications.commands`.
-
-Permisos recomendados:
-
-- View Channels, Send Messages, Embed Links y Attach Files.
-- Read Message History y Use Application Commands.
-- Manage Messages, Moderate Members, Kick Members y Ban Members.
-- Manage Roles, Manage Channels y Manage Nicknames.
-
-No es obligatorio conceder `Administrator`. Es más seguro usar solo los permisos necesarios y colocar el rol del bot por encima de los roles administrados.
-
-## Datos y copias de seguridad
-
-La base es `data/cb_studios_bot.sqlite`. Usa SQLite con WAL, claves foráneas y migraciones explícitas.
-
-Para una copia consistente:
-
-1. Ejecuta `stop.bat`.
-2. Copia el archivo SQLite y los archivos `-wal` o `-shm` presentes.
-3. Guarda la copia fuera del proyecto.
-4. Ejecuta `start.bat`.
-
-`.env`, la base, los logs y `bot.pid` están excluidos del repositorio.
-
-## Diagnóstico
-
-- **No inicia:** completa las tres variables obligatorias y revisa `logs/cb_studios_bot.log`.
-- **No aparecen comandos:** ejecuta `deploy-commands.bat` y revisa Client ID y Guild ID.
-- **Un rango no ve un comando:** revisa `/config role`, permisos de Discord y redespliega.
-- **Falla una moderación:** coloca el rol del bot por encima del objetivo.
-- **No hay bienvenida:** configura canal, `member_role_id` y `welcome_enabled`.
-- **No aparece el banner:** verifica `assets/branding/cbstudios-banner.png`.
-- **No funciona el monitor:** activa `ENABLE_SYSTEM_MONITOR=true`, reinicia y configura el canal.
-- **SQLite está bloqueado:** usa `status.bat` para comprobar otra instancia.
-
-Validación completa:
-
-```powershell
+```text
+start.bat
+stop.bat
+status.bat
+deploy-commands.bat
 test.bat
 ```
 
-## Estado de la auditoría final
+These scripts are intended to simplify local administration of
+CB Community on Windows systems.
 
-La última validación local completó correctamente:
+---------------------------------------------------------------------------
 
-- Migraciones SQLite.
-- Compilación TypeScript.
-- ESLint sin errores ni warnings.
-- 156 tests aprobados en 19 archivos.
+# Updating CB Community
 
-Se verificaron explícitamente la separación Support/Developer, las operaciones Founder-only, el bloqueo de escalamiento por roles, el estado público sanitizado, PUBLIC/SUPPORT/STAFF en voz y la ausencia de secretos en las respuestas técnicas.
+To update an existing installation:
 
-Queda deliberadamente fuera de esta fase: integración con CB Members, compras, productos, licencias, beneficios Customer/Booster, comandos mutables para Developer y transcripts históricos de más de 100 mensajes.
+### 1. Stop the Bot
+
+Stop the currently running CB Community process.
+
+### 2. Backup the Database
+
+Create a backup of:
+
+```text
+data/cb_community.sqlite
+```
+
+### 3. Update the Source Files
+
+Replace the project files with the new version.
+
+### 4. Install Dependencies
+
+```bash
+npm install
+```
+
+### 5. Apply Database Migrations
+
+```bash
+npm run db:migrate
+```
+
+### 6. Build the Project
+
+```bash
+npm run build
+```
+
+### 7. Deploy Commands if Required
+
+```bash
+npm run deploy:commands
+```
+
+### 8. Start the Bot
+
+```bash
+npm start
+```
+
+---------------------------------------------------------------------------
+
+# Troubleshooting
+
+## Bot Does Not Start
+
+Verify:
+
+• `.env` exists
+• `DISCORD_TOKEN` is configured
+• `DISCORD_CLIENT_ID` is configured
+• `DISCORD_GUILD_ID` is configured when required
+• Dependencies are installed
+• The project builds successfully
+
+Run:
+
+```bash
+npm run build
+```
+
+and review the resulting error output.
+
+## Slash Commands Are Missing
+
+Verify that the commands have been deployed:
+
+```bash
+npm run deploy:commands
+```
+
+Also verify that the bot is installed in the correct Discord server
+with the required permissions.
+
+## Database Errors
+
+Verify that:
+
+```text
+data/
+```
+
+exists and that the application has permission to create or access
+the SQLite database.
+
+Do not delete the database before creating a backup.
+
+## Module Is Not Working
+
+Verify:
+
+• The bot is online
+• The required Discord permissions are available
+• The corresponding configuration is correct
+• No startup or runtime errors are present in the logs
+
+---------------------------------------------------------------------------
+
+# Technical Notes
+
+Do not rename internal files, directories or modules unless you understand
+their references inside the project.
+
+Changing project paths or database locations may require corresponding
+configuration changes.
+
+Do not modify production database files manually.
+
+Always create a backup before performing major updates or migrations.
+
+---------------------------------------------------------------------------
+
+# Security
+
+Never commit or publicly expose:
+
+• Discord bot tokens
+• `.env` files containing secrets
+• Production databases
+• Private credentials
+• Server-specific sensitive configuration
+
+Use environment variables for sensitive configuration.
+
+If a Discord bot token is exposed, immediately revoke and regenerate
+the token through the Discord Developer Portal.
+
+---------------------------------------------------------------------------
+
+# Support
+
+When requesting support, provide as much of the following information
+as possible:
+
+```text
+Bot Name:
+Version:
+Node.js Version:
+Operating System:
+Discord Server:
+Command / Module:
+Error Message:
+Relevant Logs:
+Description:
+Steps to Reproduce:
+```
+
+Do not include:
+
+• Discord bot tokens
+• Passwords
+• Private credentials
+• Other sensitive information
+
+---------------------------------------------------------------------------
+
+# CB Studios
+
+CB Community is part of the **CB Studios** ecosystem.
+
+CB Studios develops FiveM and RedM resources, community tools,
+server infrastructure and development solutions.
+
+### Official Links
+
+**Store**
+
+https://pichirin-cb.tebex.io/
+
+**Documentation**
+
+https://docs.pichirincb.com
+
+**Discord**
+
+https://discord.gg/hsx6AvBg5s
+
+**GitHub**
+
+https://github.com/Pichirin-CB/cb-community-bot
+
+---------------------------------------------------------------------------
+
+ ██████╗██████╗     ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗ ███████╗ 
+██╔════╝██╔══██╗    ██╔════╝╚══██╔══╝██║   ██║██╔══██╗██║██╔═══██╗██╔════╝ 
+██║     ██████╔╝    ███████╗   ██║   ██║   ██║██║  ██║██║██║   ██║███████╗ 
+██║     ██╔══██╗    ╚════██║   ██║   ██║   ██║██║  ██║██║██║   ██║╚════██║ 
+╚██████╗██████╔╝    ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝███████║ 
+ ╚═════╝╚═════╝     ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝ ╚══════╝ 
+
+Store -> https://pichirin-cb.tebex.io/
+
+Documentation -> https://docs.pichirincb.com
+
+Support Discord -> https://discord.gg/hsx6AvBg5s
+
+---------------------------------------------------------------------------
+
+End of documentation
