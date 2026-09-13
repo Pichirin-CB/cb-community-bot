@@ -8,7 +8,6 @@ import {
   type TextChannel,
 } from "discord.js";
 import type {
-  CreateSteamFreePromotionInput,
   SteamFreeConfig,
   SteamFreePromotion,
   SteamFreeRepository,
@@ -16,11 +15,13 @@ import type {
 import { logger } from "../logger.js";
 
 const STEAMDB_FREE_URL = "https://steamdb.info/upcoming/free/";
-const STEAM_STORE_API_URL = "https://store.steampowered.com/api/appdetails";
+const STEAM_STORE_API_URL =
+  "https://store.steampowered.com/api/appdetails";
 
 const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+  "AppleWebKit/537.36 (KHTML, like Gecko) " +
+  "Chrome/153.0.0.0 Safari/537.36";
 
 export interface SteamFreeGame {
   appId: number;
@@ -47,6 +48,13 @@ interface SteamStoreResponse {
       initial?: number;
     };
   };
+}
+
+interface PromotionCandidate {
+  appId: number;
+  title: string;
+  startedAt: string | null;
+  expiresAt: string | null;
 }
 
 export class SteamFreeService {
@@ -105,6 +113,7 @@ export class SteamFreeService {
             game.promotionKey,
             game.expiresAt,
           );
+
           skipped += 1;
           continue;
         }
@@ -122,7 +131,10 @@ export class SteamFreeService {
           imageUrl: game.imageUrl,
         });
 
-        const messageId = await this.publishPromotion(config, promotion);
+        const messageId = await this.publishPromotion(
+          config,
+          promotion,
+        );
 
         if (messageId) {
           this.repository.setMessageId(
@@ -130,6 +142,7 @@ export class SteamFreeService {
             game.promotionKey,
             messageId,
           );
+
           published += 1;
         }
       }
@@ -194,11 +207,11 @@ export class SteamFreeService {
       logger.warn(
         "No se pudo localizar la seccion Free to Keep de SteamDB.",
       );
+
       return [];
     }
 
     const candidates = this.extractPromotionCandidates(section);
-
     const games: SteamFreeGame[] = [];
 
     for (const candidate of candidates) {
@@ -212,6 +225,7 @@ export class SteamFreeService {
             },
             "No se pudieron obtener los detalles del juego en Steam.",
           );
+
           continue;
         }
 
@@ -219,7 +233,15 @@ export class SteamFreeService {
           continue;
         }
 
-        if (details.is_free === true && !candidate.forcePromotion) {
+        /*
+         * SteamDB puede mostrar determinados títulos gratuitos
+         * dentro de otras categorías, pero nosotros solo queremos
+         * promociones temporales Free to Keep.
+         *
+         * Si Steam marca el producto como permanentemente gratuito,
+         * lo ignoramos.
+         */
+        if (details.is_free === true) {
           continue;
         }
 
@@ -249,7 +271,9 @@ export class SteamFreeService {
     return games;
   }
 
-  private extractFreeToKeepSection(html: string): string | null {
+  private extractFreeToKeepSection(
+    html: string,
+  ): string | null {
     const normalized = html.replace(/\r/g, "");
 
     const startMarkers = [
@@ -294,21 +318,8 @@ export class SteamFreeService {
 
   private extractPromotionCandidates(
     html: string,
-  ): Array<{
-    appId: number;
-    title: string;
-    startedAt: string | null;
-    expiresAt: string | null;
-    forcePromotion: boolean;
-  }> {
-    const candidates: Array<{
-      appId: number;
-      title: string;
-      startedAt: string | null;
-      expiresAt: string | null;
-      forcePromotion: boolean;
-    }> = [];
-
+  ): PromotionCandidate[] {
+    const candidates: PromotionCandidate[] = [];
     const seen = new Set<number>();
 
     const linkRegex =
@@ -327,19 +338,26 @@ export class SteamFreeService {
         continue;
       }
 
-      const title = this.cleanHtml(match[2]);
+      const title = this.cleanHtml(match[2] ?? "");
 
       if (!title || title.length < 2) {
         continue;
       }
 
-      const contextStart = Math.max(0, match.index - 2500);
+      const contextStart = Math.max(
+        0,
+        match.index - 2500,
+      );
+
       const contextEnd = Math.min(
         html.length,
         match.index + match[0].length + 2500,
       );
 
-      const context = html.slice(contextStart, contextEnd);
+      const context = html.slice(
+        contextStart,
+        contextEnd,
+      );
 
       const dates = this.extractDates(context);
 
@@ -350,7 +368,6 @@ export class SteamFreeService {
         title,
         startedAt: dates.startedAt,
         expiresAt: dates.expiresAt,
-        forcePromotion: true,
       });
     }
 
@@ -372,19 +389,25 @@ export class SteamFreeService {
     );
 
     return {
-      startedAt: this.parseSteamDbDate(startedMatch?.[1] ?? null),
-      expiresAt: this.parseSteamDbDate(expiresMatch?.[1] ?? null),
+      startedAt: this.parseSteamDbDate(
+        startedMatch?.[1] ?? null,
+      ),
+      expiresAt: this.parseSteamDbDate(
+        expiresMatch?.[1] ?? null,
+      ),
     };
   }
 
-  private parseSteamDbDate(value: string | null): string | null {
+  private parseSteamDbDate(
+    value: string | null,
+  ): string | null {
     if (!value) {
       return null;
     }
 
     const normalized = value
       .replace(/\u00a0/g, " ")
-      .replace(/\s*[–-]\s*/g, " ")
+      .replace(/\s+[–-]\s+/g, " ")
       .replace(/\s+UTC$/i, " UTC")
       .trim();
 
@@ -506,7 +529,10 @@ export class SteamFreeService {
       .setStyle(ButtonStyle.Link)
       .setURL(promotion.steam_url);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+    const row =
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button,
+      );
 
     const message = await textChannel.send({
       embeds: [embed],
