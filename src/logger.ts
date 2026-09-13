@@ -9,7 +9,7 @@ export const logger = pino(
       censor: "[redacted]",
     },
     base: {
-      app: "cb-studios-bot",
+      app: "cb-community-bot",
       env: env.NODE_ENV,
     },
     serializers: {
@@ -17,7 +17,11 @@ export const logger = pino(
       error: pino.stdSerializers.err,
     },
   },
-  pino.destination({ dest: env.LOG_FILE, sync: true, mkdir: true }),
+  pino.destination({
+    dest: env.LOG_FILE,
+    sync: true,
+    mkdir: true,
+  }),
 );
 
 export function flushLogs(): void {

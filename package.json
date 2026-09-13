@@ -1,5 +1,5 @@
 {
-  "name": "cb-studios-bot",
+  "name": "cb-community-bot",
   "version": "1.0.0",
   "description": "Bot administrativo oficial del Discord de CB Studios.",
   "main": "dist/src/index.js",
