@@ -1,0 +1,10 @@
+{
+  "groupKey": "COLOR_CLASSIC",
+  "entries": [
+    {
+      "roleId": "red",
+      "label": "Rojo",
+      "hex": "#E53935"
+    }
+  ]
+}

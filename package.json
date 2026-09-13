@@ -1,0 +1,42 @@
+{
+  "name": "cb-studios-bot",
+  "version": "1.0.0",
+  "description": "Bot administrativo oficial del Discord de CB Studios.",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/index.js",
+    "deploy:commands": "tsx scripts/deploy-commands.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:import-voice": "tsx scripts/import-voice-data.ts",
+    "db:import-vps-monitor": "tsx scripts/import-vps-monitor-data.ts"
+  },
+  "keywords": [],
+  "author": "CB Studios",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "pino": "^10.3.1",
+    "sharp": "^0.35.3",
+    "systeminformation": "^5.33.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
+  }
+}
