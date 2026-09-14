@@ -14,7 +14,9 @@ import type {
 } from "../repositories/steamFreeRepository.js";
 import { logger } from "../logger.js";
 
-const STEAMDB_FREE_URL = "https://steamdb.info/upcoming/free/";
+const STEAM_SEARCH_URL =
+  "https://store.steampowered.com/search/results/";
+
 const STEAM_STORE_API_URL =
   "https://store.steampowered.com/api/appdetails";
 
@@ -46,6 +48,8 @@ interface SteamStoreResponse {
       currency?: string;
       initial_formatted?: string;
       initial?: number;
+      final?: number;
+      discount_percent?: number;
     };
   };
 }
@@ -53,8 +57,12 @@ interface SteamStoreResponse {
 interface PromotionCandidate {
   appId: number;
   title: string;
-  startedAt: string | null;
-  expiresAt: string | null;
+}
+
+interface SearchResponse {
+  success?: number;
+  results_html?: string;
+  total_count?: number;
 }
 
 export class SteamFreeService {
@@ -186,76 +194,83 @@ export class SteamFreeService {
   }
 
   private async fetchFreeToKeepGames(): Promise<SteamFreeGame[]> {
-    const response = await fetch(STEAMDB_FREE_URL, {
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml",
-      },
-    });
+    const candidates = await this.fetchSteamPromotionCandidates();
 
-    if (!response.ok) {
-      throw new Error(
-        `SteamDB devolvio HTTP ${response.status} al consultar promociones.`,
-      );
-    }
-
-    const html = await response.text();
-
-    const section = this.extractFreeToKeepSection(html);
-
-    if (!section) {
-      logger.warn(
-        "No se pudo localizar la seccion Free to Keep de SteamDB.",
-      );
-
-      return [];
-    }
-
-    const candidates = this.extractPromotionCandidates(section);
     const games: SteamFreeGame[] = [];
 
     for (const candidate of candidates) {
       try {
-        const details = await this.fetchSteamDetails(candidate.appId);
+        const details = await this.fetchSteamDetails(
+          candidate.appId,
+        );
 
         if (!details) {
-          logger.warn(
-            {
-              appId: candidate.appId,
-            },
-            "No se pudieron obtener los detalles del juego en Steam.",
-          );
-
           continue;
         }
 
+        /*
+         * Solo queremos juegos.
+         *
+         * DLC, demos, soundtracks, software, etc. quedan fuera.
+         */
         if (details.type && details.type !== "game") {
           continue;
         }
 
         /*
-         * SteamDB puede mostrar determinados títulos gratuitos
-         * dentro de otras categorías, pero nosotros solo queremos
-         * promociones temporales Free to Keep.
+         * Un producto marcado como is_free es Free-to-Play
+         * o permanentemente gratuito.
          *
-         * Si Steam marca el producto como permanentemente gratuito,
-         * lo ignoramos.
+         * Free to Keep es diferente: es un juego de pago
+         * cuyo precio final está temporalmente en 0.
          */
         if (details.is_free === true) {
           continue;
         }
 
+        const price = details.price_overview;
+
+        if (!price) {
+          continue;
+        }
+
+        /*
+         * Debe existir un precio inicial real y el precio final
+         * debe ser 0.
+         */
+        if (
+          typeof price.initial !== "number" ||
+          price.initial <= 0 ||
+          typeof price.final !== "number" ||
+          price.final !== 0
+        ) {
+          continue;
+        }
+
+        /*
+         * Steam Search no siempre expone las fechas de una
+         * promoción en el resultado. Por eso usamos una clave
+         * estable basada en AppID + precio inicial + descuento.
+         *
+         * Cuando la promoción cambie y Steam vuelva a cobrar,
+         * dejará de aparecer en la siguiente comprobación.
+         */
+        const promotionKey =
+          `${candidate.appId}:${price.initial}:${price.discount_percent ?? 100}`;
+
         games.push({
           appId: candidate.appId,
           title: details.name ?? candidate.title,
-          promotionKey: `${candidate.appId}:${candidate.startedAt ?? "unknown"}`,
-          startedAt: candidate.startedAt,
-          expiresAt: candidate.expiresAt,
-          steamUrl: `https://store.steampowered.com/app/${candidate.appId}/`,
+          promotionKey,
+          startedAt: null,
+          expiresAt: null,
+          steamUrl:
+            `https://store.steampowered.com/app/${candidate.appId}/`,
           imageUrl: details.header_image ?? null,
           originalPrice:
-            details.price_overview?.initial_formatted ?? null,
-          currency: details.price_overview?.currency ?? null,
+            price.initial_formatted ?? null,
+          currency:
+            price.currency ?? null,
         });
       } catch (error) {
         logger.warn(
@@ -271,49 +286,50 @@ export class SteamFreeService {
     return games;
   }
 
-  private extractFreeToKeepSection(
-    html: string,
-  ): string | null {
-    const normalized = html.replace(/\r/g, "");
+  private async fetchSteamPromotionCandidates(): Promise<
+    PromotionCandidate[]
+  > {
+    const url = new URL(STEAM_SEARCH_URL);
 
-    const startMarkers = [
-      "Free to Keep",
-      "Free&nbsp;to&nbsp;Keep",
-    ];
+    url.searchParams.set("query", "");
+    url.searchParams.set("start", "0");
+    url.searchParams.set("count", "50");
+    url.searchParams.set("maxprice", "free");
+    url.searchParams.set("specials", "1");
+    url.searchParams.set("category1", "998");
+    url.searchParams.set("infinite", "1");
 
-    let start = -1;
+    const response = await fetch(url, {
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "application/json,text/javascript,*/*;q=0.8",
+        referer: "https://store.steampowered.com/",
+      },
+    });
 
-    for (const marker of startMarkers) {
-      start = normalized.indexOf(marker);
-
-      if (start !== -1) {
-        break;
-      }
+    if (!response.ok) {
+      throw new Error(
+        `Steam Search devolvio HTTP ${response.status}.`,
+      );
     }
 
-    if (start === -1) {
-      return null;
+    const json =
+      (await response.json()) as SearchResponse;
+
+    if (!json.results_html) {
+      logger.warn(
+        {
+          totalCount: json.total_count,
+        },
+        "Steam Search no devolvio resultados HTML.",
+      );
+
+      return [];
     }
 
-    const afterStart = normalized.slice(start);
-
-    const endMarkers = [
-      "Play For Free",
-      "Play&nbsp;For&nbsp;Free",
-      "Potentially Upcoming Free Promotions",
-    ];
-
-    let end = afterStart.length;
-
-    for (const marker of endMarkers) {
-      const index = afterStart.indexOf(marker);
-
-      if (index !== -1 && index > 50) {
-        end = Math.min(end, index);
-      }
-    }
-
-    return afterStart.slice(0, end);
+    return this.extractPromotionCandidates(
+      json.results_html,
+    );
   }
 
   private extractPromotionCandidates(
@@ -322,12 +338,18 @@ export class SteamFreeService {
     const candidates: PromotionCandidate[] = [];
     const seen = new Set<number>();
 
-    const linkRegex =
-      /href=["'](?:https?:\/\/steamdb\.info)?\/app\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi;
+    /*
+     * Steam Search utiliza data-ds-appid en los resultados.
+     *
+     * También aceptamos data-ds-appid con atributos adicionales
+     * para tolerar pequeños cambios del HTML.
+     */
+    const appRegex =
+      /data-ds-appid=["'](\d+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
     let match: RegExpExecArray | null;
 
-    while ((match = linkRegex.exec(html)) !== null) {
+    while ((match = appRegex.exec(html)) !== null) {
       const appId = Number(match[1]);
 
       if (!Number.isInteger(appId) || appId <= 0) {
@@ -338,86 +360,76 @@ export class SteamFreeService {
         continue;
       }
 
-      const title = this.cleanHtml(match[2] ?? "");
+      const blockStart = Math.max(
+        0,
+        match.index - 500,
+      );
+
+      const blockEnd = Math.min(
+        html.length,
+        match.index + match[0].length + 3000,
+      );
+
+      const block = html.slice(
+        blockStart,
+        blockEnd,
+      );
+
+      const titleMatch =
+        block.match(
+          /class=["'][^"']*title[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
+        );
+
+      const title = this.cleanHtml(
+        titleMatch?.[1] ??
+          this.cleanHtml(match[2] ?? ""),
+      );
 
       if (!title || title.length < 2) {
         continue;
       }
-
-      const contextStart = Math.max(
-        0,
-        match.index - 2500,
-      );
-
-      const contextEnd = Math.min(
-        html.length,
-        match.index + match[0].length + 2500,
-      );
-
-      const context = html.slice(
-        contextStart,
-        contextEnd,
-      );
-
-      const dates = this.extractDates(context);
 
       seen.add(appId);
 
       candidates.push({
         appId,
         title,
-        startedAt: dates.startedAt,
-        expiresAt: dates.expiresAt,
       });
     }
 
+    /*
+     * Fallback para cambios menores en Steam Search.
+     */
+    if (candidates.length === 0) {
+      const fallbackRegex =
+        /data-ds-appid=["'](\d+)["']/gi;
+
+      let fallbackMatch: RegExpExecArray | null;
+
+      while (
+        (fallbackMatch =
+          fallbackRegex.exec(html)) !== null
+      ) {
+        const appId = Number(fallbackMatch[1]);
+
+        if (
+          !Number.isInteger(appId) ||
+          appId <= 0 ||
+          seen.has(appId)
+        ) {
+          continue;
+        }
+
+        seen.add(appId);
+
+        candidates.push({
+          appId,
+          title: `Steam App ${appId}`,
+        });
+      }
+    }
+
     return candidates;
-  }
-
-  private extractDates(html: string): {
-    startedAt: string | null;
-    expiresAt: string | null;
-  } {
-    const plain = this.cleanHtml(html);
-
-    const startedMatch = plain.match(
-      /Started:\s*([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}\s+[–-]\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\s+UTC)/i,
-    );
-
-    const expiresMatch = plain.match(
-      /Expires:\s*([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}\s+[–-]\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\s+UTC)/i,
-    );
-
-    return {
-      startedAt: this.parseSteamDbDate(
-        startedMatch?.[1] ?? null,
-      ),
-      expiresAt: this.parseSteamDbDate(
-        expiresMatch?.[1] ?? null,
-      ),
-    };
-  }
-
-  private parseSteamDbDate(
-    value: string | null,
-  ): string | null {
-    if (!value) {
-      return null;
-    }
-
-    const normalized = value
-      .replace(/\u00a0/g, " ")
-      .replace(/\s+[–-]\s+/g, " ")
-      .replace(/\s+UTC$/i, " UTC")
-      .trim();
-
-    const parsed = new Date(normalized);
-
-    if (Number.isNaN(parsed.getTime())) {
-      return null;
-    }
-
-    return parsed.toISOString();
   }
 
   private async fetchSteamDetails(
@@ -425,7 +437,10 @@ export class SteamFreeService {
   ): Promise<SteamStoreResponse["data"] | null> {
     const url = new URL(STEAM_STORE_API_URL);
 
-    url.searchParams.set("appids", String(appId));
+    url.searchParams.set(
+      "appids",
+      String(appId),
+    );
     url.searchParams.set("cc", "us");
     url.searchParams.set("l", "english");
 
@@ -433,6 +448,8 @@ export class SteamFreeService {
       headers: {
         "user-agent": USER_AGENT,
         accept: "application/json",
+        referer:
+          `https://store.steampowered.com/app/${appId}/`,
       },
     });
 
@@ -442,10 +459,11 @@ export class SteamFreeService {
       );
     }
 
-    const json = (await response.json()) as Record<
-      string,
-      SteamStoreResponse
-    >;
+    const json =
+      (await response.json()) as Record<
+        string,
+        SteamStoreResponse
+      >;
 
     return json[String(appId)]?.success
       ? json[String(appId)]?.data ?? null
@@ -496,7 +514,9 @@ export class SteamFreeService {
 
     const embed = new EmbedBuilder()
       .setColor(0xf5c518)
-      .setTitle(`🆓 STEAM GRATIS — ${promotion.title}`)
+      .setTitle(
+        `🆓 STEAM GRATIS — ${promotion.title}`,
+      )
       .setDescription(
         [
           "🔥 **FREE TO KEEP**",
@@ -508,15 +528,19 @@ export class SteamFreeService {
             : "**GRATIS**",
           promotion.expires_at
             ? `⏰ **Expira:** <t:${Math.floor(
-                new Date(promotion.expires_at).getTime() / 1000,
+                new Date(
+                  promotion.expires_at,
+                ).getTime() / 1000,
               )}:F> (<t:${Math.floor(
-                new Date(promotion.expires_at).getTime() / 1000,
+                new Date(
+                  promotion.expires_at,
+                ).getTime() / 1000,
               )}:R>)`
             : "⏰ **Promoción temporal**",
         ].join("\n"),
       )
       .setFooter({
-        text: "Crazy • Steam Free Games",
+        text: "CB Studios • Steam Free Games",
       })
       .setTimestamp();
 
@@ -547,16 +571,46 @@ export class SteamFreeService {
 
   private cleanHtml(value: string): string {
     return value
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&quot;/gi, '"')
-      .replace(/&#39;/gi, "'")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/\s+/g, " ")
+      .replace(
+        /<script[\s\S]*?<\/script>/gi,
+        " ",
+      )
+      .replace(
+        /<style[\s\S]*?<\/style>/gi,
+        " ",
+      )
+      .replace(
+        /<[^>]+>/g,
+        " ",
+      )
+      .replace(
+        /&nbsp;/gi,
+        " ",
+      )
+      .replace(
+        /&amp;/gi,
+        "&",
+      )
+      .replace(
+        /&quot;/gi,
+        '"',
+      )
+      .replace(
+        /&#39;/gi,
+        "'",
+      )
+      .replace(
+        /&lt;/gi,
+        "<",
+      )
+      .replace(
+        /&gt;/gi,
+        ">",
+      )
+      .replace(
+        /\s+/g,
+        " ",
+      )
       .trim();
   }
 }
