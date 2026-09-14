@@ -1,4 +1,4 @@
-import {
+﻿import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -13,6 +13,8 @@ import type {
   SteamFreeRepository,
 } from "../repositories/steamFreeRepository.js";
 import { logger } from "../logger.js";
+
+const FREETOKEEP_API_URL = "https://freetokeep.gg/api/v1/offers";
 
 const GAMERPOWER_API_URL =
   "https://www.gamerpower.com/api/giveaways";
@@ -40,6 +42,22 @@ export interface SteamFreeGame {
   imageUrl: string | null;
   originalPrice: string | null;
   currency: string | null;
+}
+
+interface FreeToKeepOffer {
+  id?: string | number;
+  title?: string;
+  store?: string;
+  url?: string;
+  steam_url?: string;
+  image?: string;
+  thumbnail?: string;
+  started_at?: string;
+  start_date?: string;
+  expires_at?: string;
+  end_date?: string;
+  original_price?: string;
+  worth?: string;
 }
 
 interface GamerPowerGiveaway {
@@ -226,11 +244,14 @@ export class SteamFreeService {
    * Obtiene juegos gratuitos de Steam desde GamerPower
    * y valida cada candidato directamente contra Steam.
    *
-   * GamerPower solamente actúa como fuente de descubrimiento.
-   * La decisión final de publicar la toma Steam AppDetails.
+   * GamerPower solamente actÃºa como fuente de descubrimiento.
+   * La decisiÃ³n final de publicar la toma Steam AppDetails.
    */
   private async fetchFreeToKeepGames(): Promise<SteamFreeGame[]> {
-    const candidates = await this.fetchGamerPowerCandidates();
+    const candidates = [
+      ...(await this.fetchFreeToKeepCandidates()),
+      ...(await this.fetchGamerPowerCandidates()),
+    ];
 
     const games: SteamFreeGame[] = [];
     const seenAppIds = new Set<number>();
@@ -294,7 +315,7 @@ export class SteamFreeService {
         /*
          * Free-to-Keep:
          *
-         * - tenía precio real
+         * - tenÃ­a precio real
          * - ahora cuesta 0
          *
          * Esto descarta juegos F2P y ofertas normales.
@@ -328,7 +349,7 @@ export class SteamFreeService {
         }
 
         /*
-         * Si la fuente tiene una fecha de expiración pasada,
+         * Si la fuente tiene una fecha de expiraciÃ³n pasada,
          * no publicamos.
          */
         if (
@@ -339,7 +360,7 @@ export class SteamFreeService {
         }
 
         /*
-         * La oferta externa identifica la promoción.
+         * La oferta externa identifica la promociÃ³n.
          * El AppID forma parte de la clave para evitar colisiones.
          */
         const promotionKey = [
@@ -384,12 +405,112 @@ export class SteamFreeService {
   }
 
   /**
+   * FreeToKeep.gg es nuestra fuente especializada para
+   * promociones que realmente son "Free to Keep".
+   *
+   * No usamos esta fuente para decidir si Steam es F2P:
+   * solamente descubre la promoción. Steam AppDetails
+   * sigue siendo la validación final.
+   */
+  private async fetchFreeToKeepCandidates(): Promise<SteamCandidate[]> {
+    const url = new URL(FREETOKEEP_API_URL);
+
+    url.searchParams.set("store", "steam");
+    url.searchParams.set("limit", "200");
+
+    try {
+      const response = await this.fetchJson<unknown>(url);
+
+      const items = Array.isArray(response)
+        ? response
+        : (
+            response &&
+            typeof response === "object" &&
+            Array.isArray(
+              (response as { offers?: unknown }).offers,
+            )
+          )
+          ? (response as { offers: unknown[] }).offers
+          : [];
+
+      const candidates: SteamCandidate[] = [];
+
+      for (const raw of items) {
+        if (!raw || typeof raw !== "object") {
+          continue;
+        }
+
+        const offer = raw as FreeToKeepOffer;
+        const title = offer.title?.trim();
+
+        if (!title) {
+          continue;
+        }
+
+        const steamUrl =
+          offer.steam_url ??
+          offer.url ??
+          null;
+
+        const externalText = JSON.stringify(offer).toLowerCase();
+
+        if (
+          /\b(free weekend|free weekend|play for free|play free|demo|dlc|soundtrack|bundle)\b/i.test(
+            externalText,
+          )
+        ) {
+          continue;
+        }
+
+        const expiresAt = this.normalizeDate(
+          offer.expires_at ??
+            offer.end_date,
+        );
+
+        if (expiresAt && this.isPast(expiresAt)) {
+          continue;
+        }
+
+        candidates.push({
+          externalId:
+            offer.id !== undefined
+              ? String(offer.id)
+              : this.buildFallbackExternalId(
+                  title,
+                  expiresAt,
+                ),
+          title,
+          description: "",
+          imageUrl:
+            offer.image ??
+            offer.thumbnail ??
+            null,
+          publishedAt: this.normalizeDate(
+            offer.started_at ??
+              offer.start_date,
+          ),
+          expiresAt,
+          giveawayUrl: steamUrl,
+        });
+      }
+
+      return candidates;
+    } catch (error) {
+      logger.warn(
+        { error },
+        "FreeToKeep.gg no disponible; continuando con GamerPower",
+      );
+
+      return [];
+    }
+  }
+  /**
    * GamerPower:
    *
    * /giveaways?platform=steam&type=game
    *
-   * Solo usamos type=game. Aun así validamos posteriormente
-   * contra Steam porque GamerPower también puede listar
+   * Solo usamos type=game. Aun asÃ­ validamos posteriormente
+   * contra Steam porque GamerPower tambiÃ©n puede listar
    * giveaways de keys que no convierten el precio de Steam a 0.
    */
   private async fetchGamerPowerCandidates(): Promise<
@@ -430,7 +551,7 @@ export class SteamFreeService {
       }
 
       /*
-       * Excluir explícitamente beta/playtest.
+       * Excluir explÃ­citamente beta/playtest.
        */
       if (
         giveaway.type &&
@@ -729,29 +850,29 @@ export class SteamFreeService {
         : null;
 
     const description = [
-      "🔥 **FREE TO KEEP**",
+      "ðŸ”¥ **FREE TO KEEP**",
       "",
-      "Reclámalo durante la promoción y **se queda permanentemente en tu biblioteca de Steam**.",
+      "ReclÃ¡malo durante la promociÃ³n y **se queda permanentemente en tu biblioteca de Steam**.",
       "",
       promotion.original_price
-        ? `~~${promotion.original_price}~~ → **GRATIS**`
+        ? `~~${promotion.original_price}~~ â†’ **GRATIS**`
         : "**GRATIS**",
       "",
       expiresTimestamp
-        ? `⏰ **Expira:** <t:${expiresTimestamp}:F> (<t:${expiresTimestamp}:R>)`
-        : "⏰ **Promoción temporal de Steam**",
+        ? `â° **Expira:** <t:${expiresTimestamp}:F> (<t:${expiresTimestamp}:R>)`
+        : "â° **PromociÃ³n temporal de Steam**",
     ].join("\n");
 
     const embed =
       new EmbedBuilder()
         .setColor(0xf5c518)
         .setTitle(
-          `🆓 STEAM GRATIS — ${promotion.title}`,
+          `ðŸ†“ STEAM GRATIS â€” ${promotion.title}`,
         )
         .setDescription(description)
         .setFooter({
           text:
-            "CB Studios • Steam Free Games",
+            "CB Studios â€¢ Steam Free Games",
         })
         .setTimestamp();
 
@@ -764,7 +885,7 @@ export class SteamFreeService {
     const button =
       new ButtonBuilder()
         .setLabel(
-          "🎮 RECLAMAR EN STEAM",
+          "ðŸŽ® RECLAMAR EN STEAM",
         )
         .setStyle(
           ButtonStyle.Link,
