@@ -14,16 +14,21 @@ import type {
 } from "../repositories/steamFreeRepository.js";
 import { logger } from "../logger.js";
 
-const STEAM_SEARCH_URL =
-  "https://store.steampowered.com/search/results/";
+const GAMERPOWER_API_URL =
+  "https://www.gamerpower.com/api/giveaways";
 
 const STEAM_STORE_API_URL =
   "https://store.steampowered.com/api/appdetails";
+
+const STEAM_STORE_SEARCH_URL =
+  "https://store.steampowered.com/api/storesearch/";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/153.0.0.0 Safari/537.36";
+
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export interface SteamFreeGame {
   appId: number;
@@ -35,6 +40,22 @@ export interface SteamFreeGame {
   imageUrl: string | null;
   originalPrice: string | null;
   currency: string | null;
+}
+
+interface GamerPowerGiveaway {
+  id?: number;
+  title?: string;
+  worth?: string;
+  thumbnail?: string;
+  image?: string;
+  description?: string;
+  instructions?: string;
+  open_giveaway_url?: string;
+  giveaway_url?: string;
+  published_date?: string;
+  end_date?: string;
+  type?: string;
+  platforms?: string;
 }
 
 interface SteamStoreResponse {
@@ -54,16 +75,24 @@ interface SteamStoreResponse {
   };
 }
 
-interface PromotionCandidate {
-  appId: number;
-  title: string;
+interface SteamSearchResponse {
+  total?: number;
+  items?: Array<{
+    id?: number;
+    name?: string;
+    type?: string;
+  }>;
 }
 
-interface SearchResponse {
-  success?: number;
-  results_html?: string;
-  total_count?: number;
-}
+interface SteamCandidate {
+  externalId: string;
+  title: string;
+  description: string;
+  imageUrl: string | null;
+  publishedAt: string | null;
+  expiresAt: string | null;
+  giveawayUrl: string | null;
+};
 
 export class SteamFreeService {
   private readonly runningGuilds = new Set<string>();
@@ -193,36 +222,64 @@ export class SteamFreeService {
     }
   }
 
+  /**
+   * Obtiene juegos gratuitos de Steam desde GamerPower
+   * y valida cada candidato directamente contra Steam.
+   *
+   * GamerPower solamente actúa como fuente de descubrimiento.
+   * La decisión final de publicar la toma Steam AppDetails.
+   */
   private async fetchFreeToKeepGames(): Promise<SteamFreeGame[]> {
-    const candidates = await this.fetchSteamPromotionCandidates();
+    const candidates = await this.fetchGamerPowerCandidates();
 
     const games: SteamFreeGame[] = [];
+    const seenAppIds = new Set<number>();
 
     for (const candidate of candidates) {
       try {
-        const details = await this.fetchSteamDetails(
-          candidate.appId,
+        /*
+         * Primero intentamos encontrar el AppID directamente
+         * en las URLs proporcionadas por GamerPower.
+         */
+        let appId = this.extractSteamAppId(
+          candidate.giveawayUrl,
         );
+
+        /*
+         * Si GamerPower no proporciona una URL directa de Steam,
+         * buscamos el juego en Steam por nombre.
+         */
+        if (!appId) {
+          appId = await this.resolveSteamAppIdByTitle(
+            candidate.title,
+          );
+        }
+
+        if (!appId || seenAppIds.has(appId)) {
+          continue;
+        }
+
+        const details = await this.fetchSteamDetails(appId);
 
         if (!details) {
           continue;
         }
 
         /*
-         * Solo queremos juegos.
+         * Solo juegos.
          *
-         * DLC, demos, soundtracks, software, etc. quedan fuera.
+         * DLC, demos, software, soundtrack, video, etc.
+         * quedan fuera.
          */
         if (details.type && details.type !== "game") {
           continue;
         }
 
         /*
-         * Un producto marcado como is_free es Free-to-Play
-         * o permanentemente gratuito.
+         * is_free=true significa que el producto es
+         * permanentemente gratuito / Free-to-Play.
          *
-         * Free to Keep es diferente: es un juego de pago
-         * cuyo precio final está temporalmente en 0.
+         * No queremos esos juegos.
          */
         if (details.is_free === true) {
           continue;
@@ -235,8 +292,12 @@ export class SteamFreeService {
         }
 
         /*
-         * Debe existir un precio inicial real y el precio final
-         * debe ser 0.
+         * Free-to-Keep:
+         *
+         * - tenía precio real
+         * - ahora cuesta 0
+         *
+         * Esto descarta juegos F2P y ofertas normales.
          */
         if (
           typeof price.initial !== "number" ||
@@ -248,37 +309,73 @@ export class SteamFreeService {
         }
 
         /*
-         * Steam Search no siempre expone las fechas de una
-         * promoción en el resultado. Por eso usamos una clave
-         * estable basada en AppID + precio inicial + descuento.
-         *
-         * Cuando la promoción cambie y Steam vuelva a cobrar,
-         * dejará de aparecer en la siguiente comprobación.
+         * Evitamos publicar algo que GamerPower marque
+         * como DLC/loot/beta.
          */
-        const promotionKey =
-          `${candidate.appId}:${price.initial}:${price.discount_percent ?? 100}`;
+        const externalText = [
+          candidate.title,
+          candidate.description,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (
+          /\b(dlc|downloadable content|soundtrack|season pass|bundle)\b/i.test(
+            externalText,
+          )
+        ) {
+          continue;
+        }
+
+        /*
+         * Si la fuente tiene una fecha de expiración pasada,
+         * no publicamos.
+         */
+        if (
+          candidate.expiresAt &&
+          this.isPast(candidate.expiresAt)
+        ) {
+          continue;
+        }
+
+        /*
+         * La oferta externa identifica la promoción.
+         * El AppID forma parte de la clave para evitar colisiones.
+         */
+        const promotionKey = [
+          "gamerpower",
+          candidate.externalId,
+          appId,
+        ].join(":");
+
+        seenAppIds.add(appId);
 
         games.push({
-          appId: candidate.appId,
+          appId,
           title: details.name ?? candidate.title,
           promotionKey,
-          startedAt: null,
-          expiresAt: null,
+          startedAt: candidate.publishedAt,
+          expiresAt: candidate.expiresAt,
           steamUrl:
-            `https://store.steampowered.com/app/${candidate.appId}/`,
-          imageUrl: details.header_image ?? null,
+            `https://store.steampowered.com/app/${appId}/`,
+          imageUrl:
+            details.header_image ??
+            candidate.imageUrl ??
+            null,
           originalPrice:
-            price.initial_formatted ?? null,
+            price.initial_formatted ??
+            null,
           currency:
-            price.currency ?? null,
+            price.currency ??
+            null,
         });
       } catch (error) {
         logger.warn(
           {
             error,
-            appId: candidate.appId,
+            title: candidate.title,
           },
-          "No se pudo procesar una promocion Steam",
+          "No se pudo validar un candidato de Steam Free",
         );
       }
     }
@@ -286,173 +383,278 @@ export class SteamFreeService {
     return games;
   }
 
-  private async fetchSteamPromotionCandidates(): Promise<
-    PromotionCandidate[]
+  /**
+   * GamerPower:
+   *
+   * /giveaways?platform=steam&type=game
+   *
+   * Solo usamos type=game. Aun así validamos posteriormente
+   * contra Steam porque GamerPower también puede listar
+   * giveaways de keys que no convierten el precio de Steam a 0.
+   */
+  private async fetchGamerPowerCandidates(): Promise<
+    SteamCandidate[]
   > {
-    const url = new URL(STEAM_SEARCH_URL);
+    const url = new URL(GAMERPOWER_API_URL);
 
-    url.searchParams.set("query", "");
-    url.searchParams.set("start", "0");
-    url.searchParams.set("count", "50");
-    url.searchParams.set("maxprice", "0");
-    url.searchParams.set("json", "1");
-    url.searchParams.set("specials", "1");
-    url.searchParams.set("category1", "998");
-    url.searchParams.set("infinite", "1");
+    url.searchParams.set("platform", "steam");
+    url.searchParams.set("type", "game");
 
-    const response = await fetch(url, {
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "application/json,text/javascript,*/*;q=0.8",
-        referer: "https://store.steampowered.com/",
-      },
-    });
+    const response = await this.fetchJson<
+      GamerPowerGiveaway[]
+    >(url);
 
-    if (!response.ok) {
-      throw new Error(
-        `Steam Search devolvio HTTP ${response.status}.`,
-      );
-    }
-
-    const json =
-      (await response.json()) as SearchResponse;
-
-    if (!json.results_html) {
+    if (!Array.isArray(response)) {
       logger.warn(
-        {
-          totalCount: json.total_count,
-        },
-        "Steam Search no devolvio resultados HTML.",
+        "GamerPower no devolvio una lista de giveaways",
       );
 
       return [];
     }
 
-    return this.extractPromotionCandidates(
-      json.results_html,
-    );
-  }
+    const candidates: SteamCandidate[] = [];
 
-  private extractPromotionCandidates(
-    html: string,
-  ): PromotionCandidate[] {
-    const candidates: PromotionCandidate[] = [];
-    const seen = new Set<number>();
-
-    /*
-     * Steam Search utiliza data-ds-appid en los resultados.
-     *
-     * También aceptamos data-ds-appid con atributos adicionales
-     * para tolerar pequeños cambios del HTML.
-     */
-    const appRegex =
-      /data-ds-appid=["'](\d+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-
-    let match: RegExpExecArray | null;
-
-    while ((match = appRegex.exec(html)) !== null) {
-      const appId = Number(match[1]);
-
-      if (!Number.isInteger(appId) || appId <= 0) {
+    for (const giveaway of response) {
+      if (!giveaway.title) {
         continue;
       }
 
-      if (seen.has(appId)) {
+      const platforms =
+        giveaway.platforms?.toLowerCase() ?? "";
+
+      if (
+        platforms &&
+        !platforms.includes("steam")
+      ) {
         continue;
       }
 
-      const blockStart = Math.max(
-        0,
-        match.index - 500,
-      );
-
-      const blockEnd = Math.min(
-        html.length,
-        match.index + match[0].length + 3000,
-      );
-
-      const block = html.slice(
-        blockStart,
-        blockEnd,
-      );
-
-      const titleMatch =
-        block.match(
-          /class=["'][^"']*title[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
-        );
-
-      const title = this.cleanHtml(
-        titleMatch?.[1] ??
-          this.cleanHtml(match[2] ?? ""),
-      );
-
-      if (!title || title.length < 2) {
+      /*
+       * Excluir explícitamente beta/playtest.
+       */
+      if (
+        giveaway.type &&
+        giveaway.type.toLowerCase() !== "game"
+      ) {
         continue;
       }
 
-      seen.add(appId);
+      const description = [
+        giveaway.description ?? "",
+        giveaway.instructions ?? "",
+      ].join(" ");
+
+      if (
+        /\b(beta|playtest|early access)\b/i.test(
+          giveaway.title + " " + description,
+        )
+      ) {
+        continue;
+      }
 
       candidates.push({
-        appId,
-        title,
+        externalId:
+          giveaway.id !== undefined
+            ? String(giveaway.id)
+            : this.buildFallbackExternalId(
+                giveaway.title,
+                giveaway.end_date ?? null,
+              ),
+        title: giveaway.title,
+        description,
+        imageUrl:
+          giveaway.image ??
+          giveaway.thumbnail ??
+          null,
+        publishedAt:
+          this.normalizeDate(
+            giveaway.published_date,
+          ),
+        expiresAt:
+          this.normalizeDate(
+            giveaway.end_date,
+          ),
+        giveawayUrl:
+          giveaway.open_giveaway_url ??
+          giveaway.giveaway_url ??
+          null,
       });
-    }
-
-    /*
-     * Fallback para cambios menores en Steam Search.
-     */
-    if (candidates.length === 0) {
-      const fallbackRegex =
-        /data-ds-appid=["'](\d+)["']/gi;
-
-      let fallbackMatch: RegExpExecArray | null;
-
-      while (
-        (fallbackMatch =
-          fallbackRegex.exec(html)) !== null
-      ) {
-        const appId = Number(fallbackMatch[1]);
-
-        if (
-          !Number.isInteger(appId) ||
-          appId <= 0 ||
-          seen.has(appId)
-        ) {
-          continue;
-        }
-
-        seen.add(appId);
-
-        candidates.push({
-          appId,
-          title: `Steam App ${appId}`,
-        });
-      }
     }
 
     return candidates;
   }
 
+  /**
+   * Extrae AppID de URLs Steam.
+   */
+  private extractSteamAppId(
+    value: string | null,
+  ): number | null {
+    if (!value) {
+      return null;
+    }
+
+    const patterns = [
+      /store\.steampowered\.com\/app\/(\d+)/i,
+      /steamcommunity\.com\/app\/(\d+)/i,
+      /\/app\/(\d+)/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = value.match(pattern);
+
+      if (!match?.[1]) {
+        continue;
+      }
+
+      const appId = Number(match[1]);
+
+      if (
+        Number.isInteger(appId) &&
+        appId > 0
+      ) {
+        return appId;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Cuando la fuente no trae URL Steam directa,
+   * usamos el buscador JSON de Steam.
+   */
+  private async resolveSteamAppIdByTitle(
+    title: string,
+  ): Promise<number | null> {
+    const cleanTitle = title
+      .replace(/\s*\(Steam\)\s*/gi, "")
+      .replace(
+        /\s*(Steam Key Giveaway|Steam Giveaway|Giveaway)\s*/gi,
+        "",
+      )
+      .trim();
+
+    if (!cleanTitle) {
+      return null;
+    }
+
+    const url = new URL(
+      STEAM_STORE_SEARCH_URL,
+    );
+
+    url.searchParams.set(
+      "term",
+      cleanTitle,
+    );
+    url.searchParams.set(
+      "cc",
+      "us",
+    );
+    url.searchParams.set(
+      "l",
+      "english",
+    );
+    url.searchParams.set(
+      "start",
+      "0",
+    );
+    url.searchParams.set(
+      "count",
+      "10",
+    );
+
+    const response =
+      await this.fetchJson<SteamSearchResponse>(
+        url,
+      );
+
+    if (
+      !Array.isArray(response.items) ||
+      response.items.length === 0
+    ) {
+      return null;
+    }
+
+    const normalizedTitle =
+      this.normalizeTitle(cleanTitle);
+
+    /*
+     * Primero exigimos coincidencia exacta.
+     */
+    const exact = response.items.find(
+      (item) =>
+        item.id &&
+        item.name &&
+        this.normalizeTitle(item.name) ===
+          normalizedTitle &&
+        (!item.type ||
+          item.type === "game"),
+    );
+
+    if (exact?.id) {
+      return exact.id;
+    }
+
+    /*
+     * Como segundo intento usamos coincidencia
+     * suficientemente cercana.
+     */
+    const partial = response.items.find(
+      (item) =>
+        item.id &&
+        item.name &&
+        (!item.type ||
+          item.type === "game") &&
+        (
+          this.normalizeTitle(item.name).includes(
+            normalizedTitle,
+          ) ||
+          normalizedTitle.includes(
+            this.normalizeTitle(item.name),
+          )
+        ),
+    );
+
+    return partial?.id ?? null;
+  }
+
+  /**
+   * Steam AppDetails es la autoridad final.
+   */
   private async fetchSteamDetails(
     appId: number,
   ): Promise<SteamStoreResponse["data"] | null> {
-    const url = new URL(STEAM_STORE_API_URL);
+    const url = new URL(
+      STEAM_STORE_API_URL,
+    );
 
     url.searchParams.set(
       "appids",
       String(appId),
     );
-    url.searchParams.set("cc", "us");
-    url.searchParams.set("l", "english");
+    url.searchParams.set(
+      "cc",
+      "us",
+    );
+    url.searchParams.set(
+      "l",
+      "english",
+    );
 
-    const response = await fetch(url, {
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "application/json",
-        referer:
-          `https://store.steampowered.com/app/${appId}/`,
-      },
-    });
+    const response =
+      await fetch(url, {
+        headers: {
+          "user-agent": USER_AGENT,
+          accept: "application/json",
+          referer:
+            `https://store.steampowered.com/app/${appId}/`,
+        },
+        signal:
+          AbortSignal.timeout(
+            REQUEST_TIMEOUT_MS,
+          ),
+      });
 
     if (!response.ok) {
       throw new Error(
@@ -479,14 +681,17 @@ export class SteamFreeService {
       return null;
     }
 
-    const channel = await this.client.channels
-      .fetch(config.channel_id)
-      .catch(() => null);
+    const channel =
+      await this.client.channels
+        .fetch(config.channel_id)
+        .catch(() => null);
 
     if (
       !channel ||
-      (channel.type !== ChannelType.GuildText &&
-        channel.type !== ChannelType.GuildAnnouncement)
+      (
+        channel.type !== ChannelType.GuildText &&
+        channel.type !== ChannelType.GuildAnnouncement
+      )
     ) {
       logger.warn(
         {
@@ -499,7 +704,8 @@ export class SteamFreeService {
       return null;
     }
 
-    const textChannel = channel as TextChannel;
+    const textChannel =
+      channel as TextChannel;
 
     if (!textChannel.isSendable()) {
       logger.warn(
@@ -513,105 +719,159 @@ export class SteamFreeService {
       return null;
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0xf5c518)
-      .setTitle(
-        `🆓 STEAM GRATIS — ${promotion.title}`,
-      )
-      .setDescription(
-        [
-          "🔥 **FREE TO KEEP**",
-          "",
-          "Reclámalo durante la promoción y **se queda permanentemente en tu biblioteca de Steam**.",
-          "",
-          promotion.original_price
-            ? `~~${promotion.original_price}~~ → **GRATIS**`
-            : "**GRATIS**",
-          promotion.expires_at
-            ? `⏰ **Expira:** <t:${Math.floor(
-                new Date(
-                  promotion.expires_at,
-                ).getTime() / 1000,
-              )}:F> (<t:${Math.floor(
-                new Date(
-                  promotion.expires_at,
-                ).getTime() / 1000,
-              )}:R>)`
-            : "⏰ **Promoción temporal**",
-        ].join("\n"),
-      )
-      .setFooter({
-        text: "CB Studios • Steam Free Games",
-      })
-      .setTimestamp();
+    const expiresTimestamp =
+      promotion.expires_at
+        ? Math.floor(
+            new Date(
+              promotion.expires_at,
+            ).getTime() / 1000,
+          )
+        : null;
+
+    const description = [
+      "🔥 **FREE TO KEEP**",
+      "",
+      "Reclámalo durante la promoción y **se queda permanentemente en tu biblioteca de Steam**.",
+      "",
+      promotion.original_price
+        ? `~~${promotion.original_price}~~ → **GRATIS**`
+        : "**GRATIS**",
+      "",
+      expiresTimestamp
+        ? `⏰ **Expira:** <t:${expiresTimestamp}:F> (<t:${expiresTimestamp}:R>)`
+        : "⏰ **Promoción temporal de Steam**",
+    ].join("\n");
+
+    const embed =
+      new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle(
+          `🆓 STEAM GRATIS — ${promotion.title}`,
+        )
+        .setDescription(description)
+        .setFooter({
+          text:
+            "CB Studios • Steam Free Games",
+        })
+        .setTimestamp();
 
     if (promotion.image_url) {
-      embed.setImage(promotion.image_url);
+      embed.setImage(
+        promotion.image_url,
+      );
     }
 
-    const button = new ButtonBuilder()
-      .setLabel("🎮 RECLAMAR EN STEAM")
-      .setStyle(ButtonStyle.Link)
-      .setURL(promotion.steam_url);
+    const button =
+      new ButtonBuilder()
+        .setLabel(
+          "🎮 RECLAMAR EN STEAM",
+        )
+        .setStyle(
+          ButtonStyle.Link,
+        )
+        .setURL(
+          promotion.steam_url,
+        );
 
     const row =
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        button,
-      );
+      new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(button);
 
-    const message = await textChannel.send({
-      embeds: [embed],
-      components: [row],
-      allowedMentions: {
-        parse: [],
-      },
-    });
+    const message =
+      await textChannel.send({
+        embeds: [embed],
+        components: [row],
+        allowedMentions: {
+          parse: [],
+        },
+      });
 
     return message.id;
   }
 
-  private cleanHtml(value: string): string {
+  private async fetchJson<T>(
+    url: URL,
+  ): Promise<T> {
+    const response =
+      await fetch(url, {
+        headers: {
+          "user-agent": USER_AGENT,
+          accept:
+            "application/json,text/plain,*/*",
+        },
+        signal:
+          AbortSignal.timeout(
+            REQUEST_TIMEOUT_MS,
+          ),
+      });
+
+    if (!response.ok) {
+      throw new Error(
+        `${url.hostname} devolvio HTTP ${response.status}.`,
+      );
+    }
+
+    return (await response.json()) as T;
+  }
+
+  private normalizeDate(
+    value: string | undefined,
+  ): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return null;
+    }
+
+    return date.toISOString();
+  }
+
+  private isPast(
+    value: string,
+  ): boolean {
+    const timestamp =
+      new Date(value).getTime();
+
+    return (
+      Number.isFinite(timestamp) &&
+      timestamp <= Date.now()
+    );
+  }
+
+  private normalizeTitle(
+    value: string,
+  ): string {
     return value
+      .normalize("NFKD")
       .replace(
-        /<script[\s\S]*?<\/script>/gi,
-        " ",
+        /[\u0300-\u036f]/g,
+        "",
       )
+      .toLowerCase()
       .replace(
-        /<style[\s\S]*?<\/style>/gi,
-        " ",
-      )
-      .replace(
-        /<[^>]+>/g,
-        " ",
-      )
-      .replace(
-        /&nbsp;/gi,
-        " ",
-      )
-      .replace(
-        /&amp;/gi,
-        "&",
-      )
-      .replace(
-        /&quot;/gi,
-        '"',
-      )
-      .replace(
-        /&#39;/gi,
-        "'",
-      )
-      .replace(
-        /&lt;/gi,
-        "<",
-      )
-      .replace(
-        /&gt;/gi,
-        ">",
-      )
-      .replace(
-        /\s+/g,
+        /[^a-z0-9]+/g,
         " ",
       )
       .trim();
+  }
+
+  private buildFallbackExternalId(
+    title: string,
+    expiresAt: string | null,
+  ): string {
+    return [
+      this.normalizeTitle(title)
+        .replace(/\s+/g, "-"),
+      expiresAt ?? "unknown",
+    ].join(":");
   }
 }
