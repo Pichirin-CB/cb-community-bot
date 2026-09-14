@@ -1,29 +1,89 @@
 async function main() {
-  const url =
-    "https://store.steampowered.com/search/?maxprice=free&specials=1&hidef2p=1&ndl=1";
+  const searchUrl = new URL(
+    "https://store.steampowered.com/search/results/",
+  );
 
-  const response = await fetch(url, {
+  searchUrl.searchParams.set("query", "");
+  searchUrl.searchParams.set("start", "0");
+  searchUrl.searchParams.set("count", "50");
+  searchUrl.searchParams.set("maxprice", "0");
+  searchUrl.searchParams.set("specials", "1");
+  searchUrl.searchParams.set("category1", "998");
+  searchUrl.searchParams.set("hidef2p", "1");
+  searchUrl.searchParams.set("json", "1");
+
+  const response = await fetch(searchUrl, {
     headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "text/html,application/xhtml+xml",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36",
+      Accept: "application/json,text/javascript,*/*;q=0.8",
+      Referer: "https://store.steampowered.com/",
     },
   });
 
-  console.log("HTTP:", response.status);
-  console.log("TYPE:", response.headers.get("content-type"));
+  const data = await response.json();
 
-  const html = await response.text();
+  console.log("SEARCH HTTP:", response.status);
+  console.log("CANDIDATES:", data.items?.length ?? 0);
+  console.log("");
 
-  console.log("LENGTH:", html.length);
+  const items = Array.isArray(data.items) ? data.items : [];
 
-  const matches = html.match(/data-ds-appid=["'](\d+)["']/gi) || [];
+  for (const item of items.slice(0, 10)) {
+    const match = String(item.logo ?? "").match(/\/apps\/(\d+)\//);
 
-  const appIds = matches
-    .slice(0, 20)
-    .map((value) => value.match(/\d+/)?.[0])
-    .filter(Boolean);
+    if (!match) {
+      console.log("SIN APPID:", item.name);
+      continue;
+    }
 
-  console.log("APP IDS:", appIds);
+    const appId = Number(match[1]);
+
+    const appUrl =
+      `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=us&l=en`;
+
+    const appResponse = await fetch(appUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36",
+        Accept: "application/json",
+      },
+    });
+
+    const appData = await appResponse.json();
+    const entry = appData[String(appId)];
+
+    const details = entry?.success ? entry.data : null;
+
+    console.log("────────────────────────────────────");
+    console.log("NAME:", item.name);
+    console.log("APPID:", appId);
+    console.log("SUCCESS:", entry?.success ?? false);
+
+    if (!details) {
+      console.log("NO DETAILS");
+      continue;
+    }
+
+    console.log("TYPE:", details.type);
+    console.log("IS_FREE:", details.is_free);
+    console.log(
+      "INITIAL:",
+      details.price_overview?.initial ?? null,
+    );
+    console.log(
+      "FINAL:",
+      details.price_overview?.final ?? null,
+    );
+    console.log(
+      "DISCOUNT:",
+      details.price_overview?.discount_percent ?? null,
+    );
+    console.log(
+      "CURRENCY:",
+      details.price_overview?.currency ?? null,
+    );
+  }
 }
 
 main().catch((error) => {

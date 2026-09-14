@@ -294,7 +294,8 @@ export class SteamFreeService {
     url.searchParams.set("query", "");
     url.searchParams.set("start", "0");
     url.searchParams.set("count", "50");
-    url.searchParams.set("maxprice", "free");
+    url.searchParams.set("maxprice", "0");
+    url.searchParams.set("json", "1");
     url.searchParams.set("specials", "1");
     url.searchParams.set("category1", "998");
     url.searchParams.set("infinite", "1");
